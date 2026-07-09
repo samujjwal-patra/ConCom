@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.concom.ui.screens.BentoDashboard
 import com.example.concom.ui.theme.ConComTheme
 import com.example.concom.ui.theme.DeepBlack
 import kotlinx.coroutines.delay
@@ -71,7 +72,7 @@ class MainActivity : ComponentActivity() {
                     if (isSplash) {
                         SplashScreen(onAnimationFinish = { showSplash = false })
                     } else {
-                        MainScreen()
+                        BentoDashboard()
                     }
                 }
             }
@@ -293,25 +294,3 @@ fun ConComLogo(progress: Float, modifier: Modifier = Modifier) {
     }
 }
 
-@Composable
-fun MainScreen() {
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = DeepBlack
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    "Bento Grid & Visual Slider",
-                    color = Color.White,
-                    style = MaterialTheme.typography.headlineMedium
-                )
-                Text(
-                    "Ready to process",
-                    color = Color.Gray,
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
-        }
-    }
-}
