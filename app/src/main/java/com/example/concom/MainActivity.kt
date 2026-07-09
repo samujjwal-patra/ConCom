@@ -7,6 +7,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseInOutQuart
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -32,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -44,6 +50,7 @@ import com.example.concom.ui.theme.ConComTheme
 import com.example.concom.ui.theme.DeepBlack
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,7 +63,7 @@ class MainActivity : ComponentActivity() {
                 AnimatedContent(
                     targetState = showSplash,
                     transitionSpec = {
-                        fadeIn(animationSpec = tween(800)) togetherWith
+                        fadeIn(animationSpec = tween(1000)) togetherWith
                                 fadeOut(animationSpec = tween(800))
                     },
                     label = "SplashTransition"
@@ -78,21 +85,41 @@ fun SplashScreen(onAnimationFinish: () -> Unit) {
     val scannerOffset = remember { Animatable(0f) }
     val textAlpha = remember { Animatable(0f) }
     val contentScale = remember { Animatable(0.96f) }
+    val logoFlare = remember { Animatable(0f) }
+
+    // Professional floating effect
+    val infiniteTransition = rememberInfiniteTransition(label = "FloatingEffect")
+    val floatAnim by infiniteTransition.animateFloat(
+        initialValue = -10f,
+        targetValue = 10f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = EaseInOutQuart),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "FloatY"
+    )
 
     LaunchedEffect(Unit) {
+        // Parallelized Staggered Reveal
         launch {
-            logoProgress.animateTo(1f, tween(1000, easing = EaseInOutQuart))
+            logoProgress.animateTo(1f, tween(1200, easing = EaseInOutQuart))
+            // Flare effect once logo finishes
+            logoFlare.animateTo(1f, tween(400))
+            logoFlare.animateTo(0f, tween(800))
         }
-        delay(300)
+        
+        delay(400)
         launch {
-            scannerOffset.animateTo(1f, tween(1400, easing = EaseInOutQuart))
+            scannerOffset.animateTo(1f, tween(1800, easing = EaseInOutQuart))
         }
+        
         launch {
-            delay(500)
-            textAlpha.animateTo(1f, tween(1000))
-            contentScale.animateTo(1f, tween(1000, easing = EaseInOutQuart))
+            delay(600)
+            textAlpha.animateTo(1f, tween(1200))
+            contentScale.animateTo(1f, tween(1200, easing = EaseInOutQuart))
         }
-        delay(2200)
+        
+        delay(3200) // Slightly longer to appreciate the "Precision" feel
         onAnimationFinish()
     }
 
@@ -101,36 +128,62 @@ fun SplashScreen(onAnimationFinish: () -> Unit) {
         color = DeepBlack
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // Creative Background: Floating digital particles or just the scan glow
             val scannerGreen = Color(0xFF00FF41)
             
+            // Technical Background: Dynamic Grid
             Canvas(modifier = Modifier.fillMaxSize()) {
-                val y = scannerOffset.value * size.height
+                val gridStep = 40.dp.toPx()
+                val scanY = scannerOffset.value * size.height
                 
-                // Scanner Glow Trail
+                // Draw Grid Lines
+                for (x in 0 until (size.width / gridStep).toInt() + 1) {
+                    val xPos = x * gridStep
+                    drawLine(
+                        color = Color.White.copy(alpha = 0.05f),
+                        start = Offset(xPos, 0f),
+                        end = Offset(xPos, size.height),
+                        strokeWidth = 1f
+                    )
+                }
+                for (y in 0 until (size.height / gridStep).toInt() + 1) {
+                    val yPos = y * gridStep
+                    val dist = abs(yPos - scanY)
+                    // Grid lights up near the scanner
+                    val gridAlpha = if (dist < 200.dp.toPx()) {
+                        0.05f + (1f - dist / 200.dp.toPx()) * 0.15f
+                    } else 0.05f
+                    
+                    drawLine(
+                        color = Color.White.copy(alpha = gridAlpha),
+                        start = Offset(0f, yPos),
+                        end = Offset(size.width, yPos),
+                        strokeWidth = 1f
+                    )
+                }
+
+                // The Scanner "Laser" and Trail
                 if (scannerOffset.value > 0f && scannerOffset.value < 1f) {
                     drawRect(
                         brush = Brush.verticalGradient(
                             colors = listOf(
-                                scannerGreen.copy(alpha = 0f),
-                                scannerGreen.copy(alpha = 0.15f),
+                                Color.Transparent,
+                                scannerGreen.copy(alpha = 0.1f),
                                 Color.Transparent
                             ),
-                            startY = y - 300.dp.toPx(),
-                            endY = y
+                            startY = scanY - 400.dp.toPx(),
+                            endY = scanY
                         ),
-                        topLeft = androidx.compose.ui.geometry.Offset(0f, y - 300.dp.toPx()),
-                        size = size.copy(height = 300.dp.toPx())
+                        topLeft = Offset(0f, scanY - 400.dp.toPx()),
+                        size = size.copy(height = 400.dp.toPx())
                     )
                     
-                    // The "Laser" Line
                     drawLine(
                         brush = Brush.horizontalGradient(
                             listOf(Color.Transparent, scannerGreen, Color.Transparent)
                         ),
-                        start = androidx.compose.ui.geometry.Offset(0f, y),
-                        end = androidx.compose.ui.geometry.Offset(size.width, y),
-                        strokeWidth = 3.dp.toPx()
+                        start = Offset(0f, scanY),
+                        end = Offset(size.width, scanY),
+                        strokeWidth = 2.dp.toPx()
                     )
                 }
             }
@@ -138,15 +191,32 @@ fun SplashScreen(onAnimationFinish: () -> Unit) {
             Column(
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .scale(contentScale.value),
+                    .graphicsLayer {
+                        translationY = floatAnim
+                        scaleX = contentScale.value
+                        scaleY = contentScale.value
+                    },
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                ConComLogo(
-                    progress = logoProgress.value,
-                    modifier = Modifier.size(150.dp)
-                )
+                Box(contentAlignment = Alignment.Center) {
+                    // Logo Flare Glow
+                    Canvas(modifier = Modifier.size(200.dp)) {
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(scannerGreen.copy(alpha = 0.4f * logoFlare.value), Color.Transparent),
+                                center = center,
+                                radius = size.width / 2
+                            )
+                        )
+                    }
 
-                Spacer(modifier = Modifier.height(40.dp))
+                    ConComLogo(
+                        progress = logoProgress.value,
+                        modifier = Modifier.size(160.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(48.dp))
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
@@ -154,26 +224,25 @@ fun SplashScreen(onAnimationFinish: () -> Unit) {
                         color = Color.White,
                         style = MaterialTheme.typography.displaySmall.copy(
                             fontWeight = FontWeight.Black,
-                            letterSpacing = 16.sp
+                            letterSpacing = 20.sp
                         ),
                         modifier = Modifier
                             .alpha(textAlpha.value)
                             .graphicsLayer {
-                                // Subtle tilt for "creative" look
-                                rotationX = (1f - textAlpha.value) * 20f
+                                rotationX = (1f - textAlpha.value) * 30f
                             }
                     )
 
                     Text(
                         text = "PRECISION IMAGE ENGINE",
-                        color = scannerGreen.copy(alpha = 0.8f),
+                        color = scannerGreen.copy(alpha = 0.6f),
                         style = MaterialTheme.typography.labelLarge.copy(
-                            letterSpacing = 8.sp,
-                            fontWeight = FontWeight.Medium
+                            letterSpacing = 10.sp,
+                            fontWeight = FontWeight.Bold
                         ),
                         modifier = Modifier
                             .alpha(textAlpha.value)
-                            .padding(top = 12.dp)
+                            .padding(top = 16.dp)
                     )
                 }
             }
@@ -184,21 +253,20 @@ fun SplashScreen(onAnimationFinish: () -> Unit) {
 @Composable
 fun ConComLogo(progress: Float, modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
-        val strokeWidth = 12.dp.toPx()
+        val strokeWidth = 14.dp.toPx()
         val scannerGreen = Color(0xFF00FF41)
         val brandPurple = Color(0xFFD0BCFF)
         
-        // 1. Outer Glow (Faked with multiple arcs)
+        // Layered Glow effect
         drawArc(
             brush = Brush.sweepGradient(listOf(brandPurple, scannerGreen, brandPurple)),
             startAngle = 150f,
             sweepAngle = 240f * progress,
             useCenter = false,
-            style = Stroke(width = strokeWidth * 1.5f, cap = StrokeCap.Round),
-            alpha = 0.2f * progress
+            style = Stroke(width = strokeWidth * 1.8f, cap = StrokeCap.Round),
+            alpha = 0.15f * progress
         )
 
-        // 2. Main Outer Arc
         drawArc(
             brush = Brush.linearGradient(listOf(brandPurple, scannerGreen)),
             startAngle = 150f,
@@ -207,20 +275,18 @@ fun ConComLogo(progress: Float, modifier: Modifier = Modifier) {
             style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
         )
 
-        // 3. Inner "Conversion" element (Square to Circle transition feel)
         if (progress > 0.4f) {
             val p = (progress - 0.4f) / 0.6f
-            val innerSize = size.width * 0.4f
+            val innerSize = size.width * 0.45f
             val offset = (size.width - innerSize) / 2
             
-            // Draw a "processing" line or arrow
             drawArc(
                 color = Color.White,
                 startAngle = -90f,
                 sweepAngle = 360f * p,
                 useCenter = false,
-                style = Stroke(width = strokeWidth / 3, cap = StrokeCap.Round),
-                topLeft = androidx.compose.ui.geometry.Offset(offset, offset),
+                style = Stroke(width = strokeWidth / 4, cap = StrokeCap.Round),
+                topLeft = Offset(offset, offset),
                 size = androidx.compose.ui.geometry.Size(innerSize, innerSize)
             )
         }
