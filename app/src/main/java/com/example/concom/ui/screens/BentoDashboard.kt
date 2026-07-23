@@ -9,10 +9,15 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -22,12 +27,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
 import com.example.concom.ui.components.ImageComparisonSlider
 import com.example.concom.util.CompressionResult
 import com.example.concom.util.ImageFormat
@@ -156,6 +164,47 @@ fun BentoDashboard(mode: AppMode = AppMode.COMPRESS_SINGLE) {
                 }
             }
 
+            // Multi-Image Gallery Row (Batch Mode only)
+            if (isMultiMode && selectedImagesUris.isNotEmpty()) {
+                item(span = { GridItemSpan(2) }) {
+                    BentoCard(title = "Selected Assets (${selectedImagesUris.size})") {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(vertical = 4.dp)
+                        ) {
+                            items(selectedImagesUris) { uri ->
+                                val isSelected = uri == selectedImageUri
+                                Box(
+                                    modifier = Modifier
+                                        .size(60.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .border(
+                                            width = if (isSelected) 2.dp else 0.dp,
+                                            color = if (isSelected) Color(0xFF00FF41) else Color.Transparent,
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
+                                        .clickable { selectedImageUri = uri }
+                                ) {
+                                    AsyncImage(
+                                        model = uri,
+                                        contentDescription = null,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    if (isSelected) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(Color(0xFF00FF41).copy(alpha = 0.2f))
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Preview Section
             item(span = { GridItemSpan(2) }) {
                 BentoCard(
@@ -172,7 +221,11 @@ fun BentoDashboard(mode: AppMode = AppMode.COMPRESS_SINGLE) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Default.AddPhotoAlternate, null, tint = Color.Gray, modifier = Modifier.size(64.dp))
                             Spacer(Modifier.height(12.dp))
-                            Text("Select Image", color = Color.Gray, fontWeight = FontWeight.Medium)
+                            Text(
+                                text = if (isMultiMode) "Import Batch" else "Select Image",
+                                color = Color.Gray,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
                     } else {
                         Box(contentAlignment = Alignment.Center) {
