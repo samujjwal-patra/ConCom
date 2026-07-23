@@ -253,8 +253,8 @@ fun BentoDashboard(mode: AppMode = AppMode.COMPRESS_SINGLE) {
                 }
             }
 
-            // Mode Selection - Hide in Convert Mode
-            if (!isConvertMode) {
+            // Mode Selection - Hide until image selected
+            if (!isConvertMode && selectedImageUri != null) {
                 item(span = { GridItemSpan(2) }) {
                     BentoCard {
                         Row(
@@ -316,8 +316,8 @@ fun BentoDashboard(mode: AppMode = AppMode.COMPRESS_SINGLE) {
                 }
             }
 
-            // Control Selection - Hide in Convert Mode
-            if (!isConvertMode) {
+            // Control Selection - Hide until image selected
+            if (!isConvertMode && selectedImageUri != null) {
                 item(span = { if (mode == AppMode.BOTH) GridItemSpan(1) else GridItemSpan(2) }) {
                     if (useTargetSize) {
                         BentoCard(title = "Target Size") {
@@ -380,21 +380,23 @@ fun BentoDashboard(mode: AppMode = AppMode.COMPRESS_SINGLE) {
                 }
             }
 
-            // Statistics Card
-            item(span = { GridItemSpan(2) }) {
-                BentoCard(title = if (isConvertMode) "Format Intelligence" else "Compression Intelligence") {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        StatItem("Original", getFileSize(context, selectedImageUri))
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = Color.Gray, modifier = Modifier.size(20.dp))
-                        StatItem(if (isConvertMode) "Converted" else "Optimized", formatSize(processedResult?.sizeBytes ?: 0))
-                        
-                        if (!isConvertMode) {
-                            val saving = calculateSaving(context, selectedImageUri, processedResult?.sizeBytes)
-                            StatItem("Saving", "$saving%", color = Color(0xFF00FF41))
+            // Statistics Card - Hide until image selected
+            if (selectedImageUri != null) {
+                item(span = { GridItemSpan(2) }) {
+                    BentoCard(title = if (isConvertMode) "Format Intelligence" else "Compression Intelligence") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            StatItem("Original", getFileSize(context, selectedImageUri))
+                            Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = Color.Gray, modifier = Modifier.size(20.dp))
+                            StatItem(if (isConvertMode) "Converted" else "Optimized", formatSize(processedResult?.sizeBytes ?: 0))
+                            
+                            if (!isConvertMode) {
+                                val saving = calculateSaving(context, selectedImageUri, processedResult?.sizeBytes)
+                                StatItem("Saving", "$saving%", color = Color(0xFF00FF41))
+                            }
                         }
                     }
                 }
