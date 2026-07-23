@@ -97,14 +97,26 @@ fun BentoDashboard(mode: AppMode = AppMode.COMPRESS) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Image Engine",
-                        color = Color.White,
-                        style = MaterialTheme.typography.headlineMedium.copy(
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 1.sp
+                    Column {
+                        Text(
+                            text = "Image Engine",
+                            color = Color.White,
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 1.sp
+                            )
                         )
-                    )
+                        Text(
+                            text = when(mode) {
+                                AppMode.COMPRESS -> "Optimization Mode"
+                                AppMode.CONVERT -> "Format Migration"
+                                AppMode.BOTH -> "Full Process"
+                            },
+                            color = Color(0xFF00FF41),
+                            style = MaterialTheme.typography.labelSmall,
+                            letterSpacing = 2.sp
+                        )
+                    }
                     
                     if (processedResult != null) {
                         IconButton(

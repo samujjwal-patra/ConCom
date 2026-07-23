@@ -5,8 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Compress
-import androidx.compose.material.icons.filled.Transform
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -21,7 +20,7 @@ import androidx.compose.ui.unit.sp
 import com.example.concom.ui.theme.DeepBlack
 
 enum class AppMode {
-    COMPRESS, CONVERT
+    COMPRESS, CONVERT, BOTH
 }
 
 @Composable
@@ -44,29 +43,43 @@ fun ModeSelectionScreen(onModeSelected: (AppMode) -> Unit) {
                     letterSpacing = 8.sp,
                     fontWeight = FontWeight.Bold
                 ),
-                modifier = Modifier.padding(bottom = 48.dp)
+                modifier = Modifier.padding(bottom = 32.dp)
             )
 
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    ModeCard(
+                        title = "COMPRESS",
+                        subtitle = "Reduce Size",
+                        icon = Icons.Default.Compress,
+                        color = Color(0xFF00FF41),
+                        modifier = Modifier.weight(1f),
+                        onClick = { onModeSelected(AppMode.COMPRESS) }
+                    )
+                    
+                    ModeCard(
+                        title = "CONVERT",
+                        subtitle = "Change Format",
+                        icon = Icons.Default.Transform,
+                        color = Color(0xFFD0BCFF),
+                        modifier = Modifier.weight(1f),
+                        onClick = { onModeSelected(AppMode.CONVERT) }
+                    )
+                }
+
                 ModeCard(
-                    title = "COMPRESS",
-                    subtitle = "Reduce Size",
-                    icon = Icons.Default.Compress,
-                    color = Color(0xFF00FF41),
-                    modifier = Modifier.weight(1f),
-                    onClick = { onModeSelected(AppMode.COMPRESS) }
-                )
-                
-                ModeCard(
-                    title = "CONVERT",
-                    subtitle = "Change Format",
-                    icon = Icons.Default.Transform,
-                    color = Color(0xFFD0BCFF),
-                    modifier = Modifier.weight(1f),
-                    onClick = { onModeSelected(AppMode.CONVERT) }
+                    title = "COMPRESS & CONVERT",
+                    subtitle = "Full Optimization Engine",
+                    icon = Icons.Default.AutoMode,
+                    color = Color(0xFF00E5FF),
+                    modifier = Modifier.fillMaxWidth().height(140.dp),
+                    onClick = { onModeSelected(AppMode.BOTH) }
                 )
             }
         }
