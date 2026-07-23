@@ -39,47 +39,20 @@ class ImageProcessor(private val context: Context) {
         inputStream?.close()
 
         val compressFormat = getCompressFormat(targetFormat)
-        
         var finalQuality = quality
-        var finalBytes = ByteArray(0)
+        var finalBytes: ByteArray
 
         if (targetSizeBytes != null && targetSizeBytes > 0 && targetFormat != ImageFormat.PNG) {
-            // Binary search for best quality within target size
-            var low = 1
-            var high = 100
-            var bestQuality = 1
-            
-            while (low <= high) {
-                val mid = (low + high) / 2
-                val stream = ByteArrayOutputStream()
-                bitmap.compress(compressFormat, mid, stream)
-                val bytes = stream.toByteArray()
-                
-                if (bytes.size <= targetSizeBytes) {
-                    bestQuality = mid
-                    finalBytes = bytes
-                    low = mid + 1
-                } else {
-                    high = mid - 1
-                }
-            }
-            finalQuality = bestQuality
-            if (finalBytes.isEmpty()) {
-                val stream = ByteArrayOutputStream()
-                bitmap.compress(compressFormat, 1, stream)
-                finalBytes = stream.toByteArray()
-                finalQuality = 1
-            }
+            val result = binarySearchCompression(bitmap, compressFormat, targetSizeBytes)
+            finalQuality = result.first
+            finalBytes = result.second
         } else {
             val outputStream = ByteArrayOutputStream()
             bitmap.compress(compressFormat, quality, outputStream)
             finalBytes = outputStream.toByteArray()
         }
 
-        val fileName = "concom_${System.currentTimeMillis()}.${targetFormat.extension}"
-        val outputFile = File(context.cacheDir, fileName)
-        
-        FileOutputStream(outputFile).use { it.write(finalBytes) }
+        val outputFile = saveBytesToCache(finalBytes, targetFormat)
         
         CompressionResult(
             uri = Uri.fromFile(outputFile),
@@ -89,6 +62,47 @@ class ImageProcessor(private val context: Context) {
             format = targetFormat,
             qualityUsed = finalQuality
         )
+    }
+
+    private fun binarySearchCompression(
+        bitmap: Bitmap, 
+        format: Bitmap.CompressFormat, 
+        targetSize: Long
+    ): Pair<Int, ByteArray> {
+        var low = 1
+        var high = 100
+        var bestQuality = 1
+        var bestBytes = ByteArray(0)
+        
+        while (low <= high) {
+            val mid = (low + high) / 2
+            val stream = ByteArrayOutputStream()
+            bitmap.compress(format, mid, stream)
+            val bytes = stream.toByteArray()
+            
+            if (bytes.size <= targetSize) {
+                bestQuality = mid
+                bestBytes = bytes
+                low = mid + 1
+            } else {
+                high = mid - 1
+            }
+        }
+        
+        if (bestBytes.isEmpty()) {
+            val stream = ByteArrayOutputStream()
+            bitmap.compress(format, 1, stream)
+            bestBytes = stream.toByteArray()
+        }
+        
+        return Pair(bestQuality, bestBytes)
+    }
+
+    private fun saveBytesToCache(bytes: ByteArray, format: ImageFormat): File {
+        val fileName = "concom_${System.currentTimeMillis()}.${format.extension}"
+        val outputFile = File(context.cacheDir, fileName)
+        FileOutputStream(outputFile).use { it.write(bytes) }
+        return outputFile
     }
 
     private fun getCompressFormat(format: ImageFormat): Bitmap.CompressFormat {

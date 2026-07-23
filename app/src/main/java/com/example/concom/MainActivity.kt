@@ -2,41 +2,21 @@ package com.example.concom
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.EaseInOutQuart
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -46,11 +26,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.activity.compose.BackHandler
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.TextButton
 import com.example.concom.ui.screens.AppMode
 import com.example.concom.ui.screens.BentoDashboard
 import com.example.concom.ui.screens.ModeSelectionScreen
@@ -71,26 +46,9 @@ class MainActivity : ComponentActivity() {
                 var showExitDialog by remember { mutableStateOf(false) }
 
                 if (showExitDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showExitDialog = false },
-                        title = { Text("Exit ConCom?") },
-                        text = { Text("Are you sure you want to close the app?") },
-                        confirmButton = {
-                            Button(
-                                onClick = { finish() },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FF41), contentColor = Color.Black)
-                            ) {
-                                Text("Exit")
-                            }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showExitDialog = false }) {
-                                Text("Cancel", color = Color.White)
-                            }
-                        },
-                        containerColor = Color(0xFF1A1A1A),
-                        titleContentColor = Color.White,
-                        textContentColor = Color.Gray
+                    ExitConfirmationDialog(
+                        onConfirm = { finish() },
+                        onDismiss = { showExitDialog = false }
                     )
                 }
 
@@ -125,6 +83,34 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+fun ExitConfirmationDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Exit ConCom?") },
+        text = { Text("Are you sure you want to close the image engine?") },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF00FF41),
+                    contentColor = Color.Black
+                )
+            ) {
+                Text("Exit")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = Color.White)
+            }
+        },
+        containerColor = Color(0xFF1A1A1A),
+        titleContentColor = Color.White,
+        textContentColor = Color.Gray
+    )
+}
+
+@Composable
 fun SplashScreen(onAnimationFinish: () -> Unit) {
     val logoProgress = remember { Animatable(0f) }
     val scannerOffset = remember { Animatable(0f) }
@@ -132,7 +118,6 @@ fun SplashScreen(onAnimationFinish: () -> Unit) {
     val contentScale = remember { Animatable(0.96f) }
     val logoFlare = remember { Animatable(0f) }
 
-    // Professional floating effect
     val infiniteTransition = rememberInfiniteTransition(label = "FloatingEffect")
     val floatAnim by infiniteTransition.animateFloat(
         initialValue = -10f,
@@ -145,10 +130,8 @@ fun SplashScreen(onAnimationFinish: () -> Unit) {
     )
 
     LaunchedEffect(Unit) {
-        // Parallelized Staggered Reveal
         launch {
             logoProgress.animateTo(1f, tween(1200, easing = EaseInOutQuart))
-            // Flare effect once logo finishes
             logoFlare.animateTo(1f, tween(400))
             logoFlare.animateTo(0f, tween(800))
         }
@@ -164,74 +147,15 @@ fun SplashScreen(onAnimationFinish: () -> Unit) {
             contentScale.animateTo(1f, tween(1200, easing = EaseInOutQuart))
         }
         
-        delay(3200) // Slightly longer to appreciate the "Precision" feel
+        delay(3200)
         onAnimationFinish()
     }
 
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = DeepBlack
-    ) {
+    Surface(modifier = Modifier.fillMaxSize(), color = DeepBlack) {
         Box(modifier = Modifier.fillMaxSize()) {
             val scannerGreen = Color(0xFF00FF41)
             
-            // Technical Background: Dynamic Grid
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val gridStep = 40.dp.toPx()
-                val scanY = scannerOffset.value * size.height
-                
-                // Draw Grid Lines
-                for (x in 0 until (size.width / gridStep).toInt() + 1) {
-                    val xPos = x * gridStep
-                    drawLine(
-                        color = Color.White.copy(alpha = 0.05f),
-                        start = Offset(xPos, 0f),
-                        end = Offset(xPos, size.height),
-                        strokeWidth = 1f
-                    )
-                }
-                for (y in 0 until (size.height / gridStep).toInt() + 1) {
-                    val yPos = y * gridStep
-                    val dist = abs(yPos - scanY)
-                    // Grid lights up near the scanner
-                    val gridAlpha = if (dist < 200.dp.toPx()) {
-                        0.05f + (1f - dist / 200.dp.toPx()) * 0.15f
-                    } else 0.05f
-                    
-                    drawLine(
-                        color = Color.White.copy(alpha = gridAlpha),
-                        start = Offset(0f, yPos),
-                        end = Offset(size.width, yPos),
-                        strokeWidth = 1f
-                    )
-                }
-
-                // The Scanner "Laser" and Trail
-                if (scannerOffset.value > 0f && scannerOffset.value < 1f) {
-                    drawRect(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                scannerGreen.copy(alpha = 0.1f),
-                                Color.Transparent
-                            ),
-                            startY = scanY - 400.dp.toPx(),
-                            endY = scanY
-                        ),
-                        topLeft = Offset(0f, scanY - 400.dp.toPx()),
-                        size = size.copy(height = 400.dp.toPx())
-                    )
-                    
-                    drawLine(
-                        brush = Brush.horizontalGradient(
-                            listOf(Color.Transparent, scannerGreen, Color.Transparent)
-                        ),
-                        start = Offset(0f, scanY),
-                        end = Offset(size.width, scanY),
-                        strokeWidth = 2.dp.toPx()
-                    )
-                }
-            }
+            TechnicalGrid(scannerOffset.value)
 
             Column(
                 modifier = Modifier
@@ -244,7 +168,6 @@ fun SplashScreen(onAnimationFinish: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    // Logo Flare Glow
                     Canvas(modifier = Modifier.size(200.dp)) {
                         drawCircle(
                             brush = Brush.radialGradient(
@@ -263,35 +186,92 @@ fun SplashScreen(onAnimationFinish: () -> Unit) {
 
                 Spacer(modifier = Modifier.height(48.dp))
 
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "CONCOM",
-                        color = Color.White,
-                        style = MaterialTheme.typography.displaySmall.copy(
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 20.sp
-                        ),
-                        modifier = Modifier
-                            .alpha(textAlpha.value)
-                            .graphicsLayer {
-                                rotationX = (1f - textAlpha.value) * 30f
-                            }
-                    )
-
-                    Text(
-                        text = "PRECISION IMAGE ENGINE",
-                        color = scannerGreen.copy(alpha = 0.6f),
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            letterSpacing = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        modifier = Modifier
-                            .alpha(textAlpha.value)
-                            .padding(top = 16.dp)
-                    )
-                }
+                BrandingSection(textAlpha.value, scannerGreen)
             }
         }
+    }
+}
+
+@Composable
+fun TechnicalGrid(scannerValue: Float) {
+    val scannerGreen = Color(0xFF00FF41)
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val gridStep = 40.dp.toPx()
+        val scanY = scannerValue * size.height
+        
+        for (x in 0 until (size.width / gridStep).toInt() + 1) {
+            val xPos = x * gridStep
+            drawLine(
+                color = Color.White.copy(alpha = 0.05f),
+                start = Offset(xPos, 0f),
+                end = Offset(xPos, size.height),
+                strokeWidth = 1f
+            )
+        }
+        for (y in 0 until (size.height / gridStep).toInt() + 1) {
+            val yPos = y * gridStep
+            val dist = abs(yPos - scanY)
+            val gridAlpha = if (dist < 200.dp.toPx()) {
+                0.05f + (1f - dist / 200.dp.toPx()) * 0.15f
+            } else 0.05f
+            
+            drawLine(
+                color = Color.White.copy(alpha = gridAlpha),
+                start = Offset(0f, yPos),
+                end = Offset(size.width, yPos),
+                strokeWidth = 1f
+            )
+        }
+
+        if (scannerValue in 0.01f..0.99f) {
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(Color.Transparent, scannerGreen.copy(alpha = 0.1f), Color.Transparent),
+                    startY = scanY - 400.dp.toPx(),
+                    endY = scanY
+                ),
+                topLeft = Offset(0f, scanY - 400.dp.toPx()),
+                size = size.copy(height = 400.dp.toPx())
+            )
+            
+            drawLine(
+                brush = Brush.horizontalGradient(
+                    listOf(Color.Transparent, scannerGreen, Color.Transparent)
+                ),
+                start = Offset(0f, scanY),
+                end = Offset(size.width, scanY),
+                strokeWidth = 2.dp.toPx()
+            )
+        }
+    }
+}
+
+@Composable
+fun BrandingSection(alpha: Float, accentColor: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = "CONCOM",
+            color = Color.White,
+            style = MaterialTheme.typography.displaySmall.copy(
+                fontWeight = FontWeight.Black,
+                letterSpacing = 20.sp
+            ),
+            modifier = Modifier
+                .alpha(alpha)
+                .graphicsLayer { rotationX = (1f - alpha) * 30f }
+        )
+
+        Text(
+            text = "PRECISION IMAGE ENGINE",
+            color = accentColor.copy(alpha = 0.6f),
+            style = MaterialTheme.typography.labelLarge.copy(
+                letterSpacing = 10.sp,
+                fontWeight = FontWeight.Bold
+            ),
+            modifier = Modifier
+                .alpha(alpha)
+                .padding(top = 16.dp)
+        )
     }
 }
 
@@ -302,7 +282,6 @@ fun ConComLogo(progress: Float, modifier: Modifier = Modifier) {
         val scannerGreen = Color(0xFF00FF41)
         val brandPurple = Color(0xFFD0BCFF)
         
-        // Layered Glow effect
         drawArc(
             brush = Brush.sweepGradient(listOf(brandPurple, scannerGreen, brandPurple)),
             startAngle = 150f,
@@ -337,4 +316,3 @@ fun ConComLogo(progress: Float, modifier: Modifier = Modifier) {
         }
     }
 }
-

@@ -41,22 +41,13 @@ fun ImageComparisonSlider(
     var sliderPosition by remember { mutableStateOf(0.5f) }
     var isDragging by remember { mutableStateOf(false) }
     
-    val labelAlpha by animateFloatAsState(
-        targetValue = if (isDragging) 0f else 1f,
-        label = "LabelAlpha"
-    )
-
-    val handleScale by animateFloatAsState(
-        targetValue = if (isDragging) 1.2f else 1f,
-        label = "HandleScale"
-    )
+    val labelAlpha by animateFloatAsState(if (isDragging) 0f else 1f, label = "LabelAlpha")
+    val handleScale by animateFloatAsState(if (isDragging) 1.2f else 1f, label = "HandleScale")
 
     BoxWithConstraints(
         modifier = modifier
-            .fillMaxWidth()
-            .aspectRatio(1f)
-            .clip(RoundedCornerShape(16.dp))
-            .clipToBounds()
+            .fillMaxWidth().aspectRatio(1f)
+            .clip(RoundedCornerShape(16.dp)).clipToBounds()
     ) {
         val widthPx = constraints.maxWidth.toFloat()
         val heightPx = constraints.maxHeight.toFloat()
@@ -65,69 +56,21 @@ fun ImageComparisonSlider(
         val fullWidth = with(density) { widthPx.toDp() }
         val fullHeight = with(density) { heightPx.toDp() }
 
-        // Bottom Layer: Processed Image
-        AsyncImage(
-            model = processedUri,
-            contentDescription = "Processed Image",
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
-        )
+        // Bottom Layer: Processed
+        AsyncImage(model = processedUri, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        ComparisonLabel("OPTIMIZED", Alignment.BottomEnd, labelAlpha * 0.7f)
         
-        // Label for Optimized
-        Text(
-            text = "OPTIMIZED",
-            color = Color.White,
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 2.sp
-            ),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(12.dp)
-                .alpha(labelAlpha * 0.7f)
-                .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
-                .padding(horizontal = 6.dp, vertical = 2.dp)
-        )
-        
-        // Top Layer: Original Image (Clipped)
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .width(with(density) { (widthPx * sliderPosition).toDp() })
-                .clipToBounds()
-        ) {
-            AsyncImage(
-                model = originalUri,
-                contentDescription = "Original Image",
-                modifier = Modifier.size(fullWidth, fullHeight),
-                contentScale = ContentScale.Crop
-            )
-            
-            // Label for Original
-            Text(
-                text = "ORIGINAL",
-                color = Color.White,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp
-                ),
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(12.dp)
-                    .alpha(labelAlpha * 0.7f)
-                    .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            )
+        // Top Layer: Original
+        Box(modifier = Modifier.fillMaxHeight().width(with(density) { (widthPx * sliderPosition).toDp() }).clipToBounds()) {
+            AsyncImage(model = originalUri, contentDescription = null, modifier = Modifier.size(fullWidth, fullHeight), contentScale = ContentScale.Crop)
+            ComparisonLabel("ORIGINAL", Alignment.BottomStart, labelAlpha * 0.7f)
         }
         
-        // Divider Line with Glow
+        // Divider
         Box(
             modifier = Modifier
                 .offset { IntOffset((widthPx * sliderPosition).roundToInt() - 1.dp.toPx().toInt(), 0) }
-                .fillMaxHeight()
-                .width(2.dp)
-                .background(Color.White)
-                .shadow(elevation = 4.dp, spotColor = Color.Black)
+                .fillMaxHeight().width(2.dp).background(Color.White).shadow(4.dp)
         )
         
         // Handle
@@ -139,11 +82,8 @@ fun ImageComparisonSlider(
                         (heightPx / 2).roundToInt() - 24.dp.toPx().toInt()
                     ) 
                 }
-                .size(48.dp)
-                .scale(handleScale)
-                .shadow(8.dp, CircleShape)
-                .background(Color.White, CircleShape)
-                .border(1.dp, Color.LightGray, CircleShape)
+                .size(48.dp).scale(handleScale).shadow(8.dp, CircleShape)
+                .background(Color.White, CircleShape).border(1.dp, Color.LightGray, CircleShape)
                 .pointerInput(Unit) {
                     detectDragGestures(
                         onDragStart = { isDragging = true },
@@ -156,12 +96,18 @@ fun ImageComparisonSlider(
                 },
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.Default.UnfoldMore,
-                contentDescription = null,
-                tint = Color.Black,
-                modifier = Modifier.size(24.dp)
-            )
+            Icon(Icons.Default.UnfoldMore, null, tint = Color.Black, modifier = Modifier.size(24.dp))
         }
+    }
+}
+
+@Composable
+fun ComparisonLabel(text: String, alignment: Alignment, alpha: Float) {
+    Box(modifier = Modifier.fillMaxSize().padding(12.dp).alpha(alpha), contentAlignment = alignment) {
+        Text(
+            text = text, color = Color.White,
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 2.sp),
+            modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)
+        )
     }
 }
