@@ -39,7 +39,7 @@ import java.io.File
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun BentoDashboard() {
+fun BentoDashboard(mode: AppMode = AppMode.COMPRESS) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val processor = remember { ImageProcessor(context) }

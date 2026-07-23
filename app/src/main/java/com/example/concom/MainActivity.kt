@@ -46,7 +46,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.concom.ui.screens.AppMode
 import com.example.concom.ui.screens.BentoDashboard
+import com.example.concom.ui.screens.ModeSelectionScreen
 import com.example.concom.ui.theme.ConComTheme
 import com.example.concom.ui.theme.DeepBlack
 import kotlinx.coroutines.delay
@@ -59,20 +61,24 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             ConComTheme(darkTheme = true) {
-                var showSplash by remember { mutableStateOf(true) }
+                var currentScreen by remember { mutableStateOf("splash") }
+                var selectedMode by remember { mutableStateOf<AppMode?>(null) }
 
                 AnimatedContent(
-                    targetState = showSplash,
+                    targetState = currentScreen,
                     transitionSpec = {
                         fadeIn(animationSpec = tween(1000)) togetherWith
                                 fadeOut(animationSpec = tween(800))
                     },
-                    label = "SplashTransition"
-                ) { isSplash ->
-                    if (isSplash) {
-                        SplashScreen(onAnimationFinish = { showSplash = false })
-                    } else {
-                        BentoDashboard()
+                    label = "AppNavigation"
+                ) { screen ->
+                    when (screen) {
+                        "splash" -> SplashScreen(onAnimationFinish = { currentScreen = "selection" })
+                        "selection" -> ModeSelectionScreen(onModeSelected = { mode ->
+                            selectedMode = mode
+                            currentScreen = "dashboard"
+                        })
+                        "dashboard" -> BentoDashboard(mode = selectedMode ?: AppMode.COMPRESS)
                     }
                 }
             }
