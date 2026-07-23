@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
+import android.webkit.MimeTypeMap
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -17,7 +18,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -44,6 +44,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.Locale
 
 enum class SizeUnit(val factor: Long) {
     BYTE(1L), KB(1024L), MB(1024L * 1024L)
@@ -69,7 +70,8 @@ fun BentoDashboard(mode: AppMode = AppMode.COMPRESS_SINGLE) {
     
     var isProcessing by remember { mutableStateOf(value = false) }
 
-    val isMultiMode = mode == AppMode.COMPRESS_MULTI
+    val isMultiMode = mode == AppMode.COMPRESS_MULTI || mode == AppMode.CONVERT_MULTI
+    val isConvertMode = mode == AppMode.CONVERT_SINGLE || mode == AppMode.CONVERT_MULTI
 
     val singlePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
@@ -96,8 +98,8 @@ fun BentoDashboard(mode: AppMode = AppMode.COMPRESS_SINGLE) {
             val targetBytes = if (useTargetSize) (targetSizeValue.toLongOrNull() ?: 0L) * selectedUnit.factor else null
             processedResult = processor.processImage(
                 inputUri = uri,
-                targetFormat = if (mode == AppMode.CONVERT || mode == AppMode.BOTH) targetFormat else ImageFormat.JPEG,
-                quality = quality.toInt(),
+                targetFormat = if (isConvertMode || mode == AppMode.BOTH) targetFormat else ImageFormat.JPEG,
+                quality = if (isConvertMode) 100 else quality.toInt(),
                 targetSizeBytes = if (targetBytes != null && targetBytes > 0) targetBytes else null
             )
             isProcessing = false
@@ -137,7 +139,8 @@ fun BentoDashboard(mode: AppMode = AppMode.COMPRESS_SINGLE) {
                             text = when(mode) {
                                 AppMode.COMPRESS_SINGLE -> "Compression: Single"
                                 AppMode.COMPRESS_MULTI -> "Compression: Batch"
-                                AppMode.CONVERT -> "Format Migration"
+                                AppMode.CONVERT_SINGLE -> "Format Migration: Single"
+                                AppMode.CONVERT_MULTI -> "Format Migration: Batch"
                                 AppMode.BOTH -> "Full Process"
                             },
                             color = Color(0xFF00FF41),
@@ -229,10 +232,19 @@ fun BentoDashboard(mode: AppMode = AppMode.COMPRESS_SINGLE) {
                         }
                     } else {
                         Box(contentAlignment = Alignment.Center) {
-                            ImageComparisonSlider(
-                                originalUri = selectedImageUri,
-                                processedUri = processedResult?.uri ?: selectedImageUri
-                            )
+                            if (isConvertMode) {
+                                AsyncImage(
+                                    model = processedResult?.uri ?: selectedImageUri,
+                                    contentDescription = "Converted Preview",
+                                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                ImageComparisonSlider(
+                                    originalUri = selectedImageUri,
+                                    processedUri = processedResult?.uri ?: selectedImageUri
+                                )
+                            }
                             if (isProcessing) {
                                 CircularProgressIndicator(color = Color(0xFF00FF41))
                             }
@@ -241,28 +253,46 @@ fun BentoDashboard(mode: AppMode = AppMode.COMPRESS_SINGLE) {
                 }
             }
 
-            // Mode Selection
-            item(span = { GridItemSpan(2) }) {
-                BentoCard {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Custom File Size Mode", color = Color.White)
-                        Switch(
-                            checked = useTargetSize,
-                            onCheckedChange = { useTargetSize = it },
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00FF41))
+            // Mode Selection - Hide in Convert Mode
+            if (!isConvertMode) {
+                item(span = { GridItemSpan(2) }) {
+                    BentoCard {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Custom File Size Mode", color = Color.White)
+                            Switch(
+                                checked = useTargetSize,
+                                onCheckedChange = { useTargetSize = it },
+                                colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00FF41))
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Current Format Display (Convert Mode only)
+            if (isConvertMode && selectedImageUri != null) {
+                item {
+                    BentoCard(title = "Original Format") {
+                        Text(
+                            text = getImageFormatFromUri(context, selectedImageUri!!),
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 2.sp
+                            )
                         )
                     }
                 }
             }
 
-            // Format Selection - Only visible in Convert or Both modes
-            if (mode == AppMode.CONVERT || mode == AppMode.BOTH) {
-                item {
-                    BentoCard(title = "Format") {
+            // Format Selection - Visible in Convert or Both modes ONLY after selection
+            if ((isConvertMode || mode == AppMode.BOTH) && selectedImageUri != null) {
+                item(span = { if (isConvertMode) GridItemSpan(1) else GridItemSpan(1) }) {
+                    BentoCard(title = "Convert to") {
                         FlowRow(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -286,71 +316,73 @@ fun BentoDashboard(mode: AppMode = AppMode.COMPRESS_SINGLE) {
                 }
             }
 
-            // Control Selection
-            item(span = { if (mode == AppMode.CONVERT || mode == AppMode.BOTH) GridItemSpan(1) else GridItemSpan(2) }) {
-                if (useTargetSize) {
-                    BentoCard(title = "Target Size") {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            TextField(
-                                value = targetSizeValue,
-                                onValueChange = { targetSizeValue = it },
-                                modifier = Modifier.weight(1f),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                colors = TextFieldDefaults.colors(
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
-                                    focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent,
-                                    focusedIndicatorColor = Color(0xFF00FF41)
-                                ),
-                                singleLine = true
-                            )
-                            
-                            var unitExpanded by remember { mutableStateOf(false) }
-                            Box {
-                                TextButton(onClick = { unitExpanded = true }) {
-                                    Text(selectedUnit.name, color = Color(0xFF00FF41))
-                                    Icon(Icons.Default.ArrowDropDown, null, tint = Color(0xFF00FF41))
-                                }
-                                DropdownMenu(
-                                    expanded = unitExpanded,
-                                    onDismissRequest = { unitExpanded = false },
-                                    modifier = Modifier.background(Color(0xFF1E1E1E))
-                                ) {
-                                    SizeUnit.entries.forEach { unit ->
-                                        DropdownMenuItem(
-                                            text = { Text(unit.name, color = Color.White) },
-                                            onClick = {
-                                                selectedUnit = unit
-                                                unitExpanded = false
-                                            }
-                                        )
+            // Control Selection - Hide in Convert Mode
+            if (!isConvertMode) {
+                item(span = { if (mode == AppMode.BOTH) GridItemSpan(1) else GridItemSpan(2) }) {
+                    if (useTargetSize) {
+                        BentoCard(title = "Target Size") {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                TextField(
+                                    value = targetSizeValue,
+                                    onValueChange = { targetSizeValue = it },
+                                    modifier = Modifier.weight(1f),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White,
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent,
+                                        focusedIndicatorColor = Color(0xFF00FF41)
+                                    ),
+                                    singleLine = true
+                                )
+                                
+                                var unitExpanded by remember { mutableStateOf(false) }
+                                Box {
+                                    TextButton(onClick = { unitExpanded = true }) {
+                                        Text(selectedUnit.name, color = Color(0xFF00FF41))
+                                        Icon(Icons.Default.ArrowDropDown, null, tint = Color(0xFF00FF41))
+                                    }
+                                    DropdownMenu(
+                                        expanded = unitExpanded,
+                                        onDismissRequest = { unitExpanded = false },
+                                        modifier = Modifier.background(Color(0xFF1E1E1E))
+                                    ) {
+                                        SizeUnit.entries.forEach { unit ->
+                                            DropdownMenuItem(
+                                                text = { Text(unit.name, color = Color.White) },
+                                                onClick = {
+                                                    selectedUnit = unit
+                                                    unitExpanded = false
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                } else {
-                    BentoCard(title = "Quality: ${quality.toInt()}%") {
-                        Slider(
-                            value = quality,
-                            onValueChange = { quality = it },
-                            valueRange = 10f..100f,
-                            colors = SliderDefaults.colors(
-                                thumbColor = Color.White,
-                                activeTrackColor = Color(0xFF00FF41)
+                    } else {
+                        BentoCard(title = "Quality: ${quality.toInt()}%") {
+                            Slider(
+                                value = quality,
+                                onValueChange = { quality = it },
+                                valueRange = 10f..100f,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color.White,
+                                    activeTrackColor = Color(0xFF00FF41)
+                                )
                             )
-                        )
+                        }
                     }
                 }
             }
 
             // Statistics Card
             item(span = { GridItemSpan(2) }) {
-                BentoCard(title = "Compression Intelligence") {
+                BentoCard(title = if (isConvertMode) "Format Intelligence" else "Compression Intelligence") {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
@@ -358,10 +390,12 @@ fun BentoDashboard(mode: AppMode = AppMode.COMPRESS_SINGLE) {
                     ) {
                         StatItem("Original", getFileSize(context, selectedImageUri))
                         Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = Color.Gray, modifier = Modifier.size(20.dp))
-                        StatItem("Optimized", formatSize(processedResult?.sizeBytes ?: 0))
+                        StatItem(if (isConvertMode) "Converted" else "Optimized", formatSize(processedResult?.sizeBytes ?: 0))
                         
-                        val saving = calculateSaving(context, selectedImageUri, processedResult?.sizeBytes)
-                        StatItem("Saving", "$saving%", color = Color(0xFF00FF41))
+                        if (!isConvertMode) {
+                            val saving = calculateSaving(context, selectedImageUri, processedResult?.sizeBytes)
+                            StatItem("Saving", "$saving%", color = Color(0xFF00FF41))
+                        }
                     }
                 }
             }
@@ -455,4 +489,16 @@ suspend fun saveToGallery(context: Context, result: CompressionResult): Boolean 
         }
         true
     } ?: false
+}
+
+fun getImageFormatFromUri(context: Context, uri: Uri): String {
+    val mimeType = context.contentResolver.getType(uri)
+    return if (mimeType != null) {
+        MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType)?.uppercase(Locale.ROOT) ?: "UNKNOWN"
+    } else {
+        uri.path?.let { path ->
+            val lastDot = path.lastIndexOf('.')
+            if (lastDot != -1) path.substring(lastDot + 1).uppercase(Locale.ROOT) else "UNKNOWN"
+        } ?: "UNKNOWN"
+    }
 }
