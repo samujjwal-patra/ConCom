@@ -46,6 +46,11 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.BackHandler
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.TextButton
 import com.example.concom.ui.screens.AppMode
 import com.example.concom.ui.screens.BentoDashboard
 import com.example.concom.ui.screens.ModeSelectionScreen
@@ -63,6 +68,39 @@ class MainActivity : ComponentActivity() {
             ConComTheme(darkTheme = true) {
                 var currentScreen by remember { mutableStateOf("splash") }
                 var selectedMode by remember { mutableStateOf<AppMode?>(null) }
+                var showExitDialog by remember { mutableStateOf(false) }
+
+                if (showExitDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showExitDialog = false },
+                        title = { Text("Exit ConCom?") },
+                        text = { Text("Are you sure you want to close the app?") },
+                        confirmButton = {
+                            Button(
+                                onClick = { finish() },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FF41), contentColor = Color.Black)
+                            ) {
+                                Text("Exit")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showExitDialog = false }) {
+                                Text("Cancel", color = Color.White)
+                            }
+                        },
+                        containerColor = Color(0xFF1A1A1A),
+                        titleContentColor = Color.White,
+                        textContentColor = Color.Gray
+                    )
+                }
+
+                BackHandler {
+                    when (currentScreen) {
+                        "dashboard" -> currentScreen = "selection"
+                        "selection" -> showExitDialog = true
+                        else -> finish()
+                    }
+                }
 
                 AnimatedContent(
                     targetState = currentScreen,
