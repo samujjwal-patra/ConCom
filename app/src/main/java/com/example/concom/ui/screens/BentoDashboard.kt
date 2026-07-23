@@ -9,17 +9,19 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
@@ -28,13 +30,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.systemBarsPadding
 import coil3.compose.AsyncImage
 import com.example.concom.ui.components.ImageComparisonSlider
 import com.example.concom.util.CompressionResult
@@ -70,25 +75,43 @@ fun BentoDashboard(mode: AppMode = AppMode.COMPRESS_SINGLE) {
     
     var isProcessing by remember { mutableStateOf(value = false) }
 
-    val isMultiMode = mode == AppMode.COMPRESS_MULTI || mode == AppMode.CONVERT_MULTI
+    val isMultiMode = mode == AppMode.COMPRESS_MULTI || mode == AppMode.CONVERT_MULTI || mode == AppMode.BOTH_MULTI
     val isConvertMode = mode == AppMode.CONVERT_SINGLE || mode == AppMode.CONVERT_MULTI
+    val isBothMode = mode == AppMode.BOTH_SINGLE || mode == AppMode.BOTH_MULTI
 
-    val singlePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia(),
-    ) { uri ->
-        if (uri != null) {
-            selectedImageUri = uri
-            processedResult = null
+    val themeColor = if (isBothMode) Color(0xFF00E5FF) else if (isConvertMode) Color(0xFFD0BCFF) else Color(0xFF00FF41)
+
+    val originalFormatName = remember(selectedImageUri) {
+        selectedImageUri?.let { getImageFormatFromUri(context, it) } ?: ""
+    }
+
+    LaunchedEffect(originalFormatName) {
+        if (isConvertMode || isBothMode) {
+            val originalEnum = ImageFormat.entries.find { 
+                it.name == originalFormatName || it.extension.uppercase(Locale.ROOT) == originalFormatName 
+            }
+            if (targetFormat == originalEnum) {
+                targetFormat = if (originalEnum == ImageFormat.WEBP) ImageFormat.JPEG else ImageFormat.WEBP
+            }
         }
     }
 
-    val multiPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickMultipleVisualMedia(),
-    ) { uris ->
-        if (uris.isNotEmpty()) {
-            selectedImagesUris = uris
-            selectedImageUri = uris.first()
-            processedResult = null
+    val pickerLauncher = rememberLauncherForActivityResult(
+        contract = if (isMultiMode) ActivityResultContracts.PickMultipleVisualMedia() else ActivityResultContracts.PickVisualMedia()
+    ) { result ->
+        when (result) {
+            is Uri -> {
+                selectedImageUri = result
+                processedResult = null
+            }
+            is List<*> -> {
+                val uris = result.filterIsInstance<Uri>()
+                if (uris.isNotEmpty()) {
+                    selectedImagesUris = uris
+                    selectedImageUri = uris.first()
+                    processedResult = null
+                }
+            }
         }
     }
 
@@ -98,7 +121,7 @@ fun BentoDashboard(mode: AppMode = AppMode.COMPRESS_SINGLE) {
             val targetBytes = if (useTargetSize) (targetSizeValue.toLongOrNull() ?: 0L) * selectedUnit.factor else null
             processedResult = processor.processImage(
                 inputUri = uri,
-                targetFormat = if (isConvertMode || mode == AppMode.BOTH) targetFormat else ImageFormat.JPEG,
+                targetFormat = if (isConvertMode || isBothMode) targetFormat else ImageFormat.JPEG,
                 quality = if (isConvertMode) 100 else quality.toInt(),
                 targetSizeBytes = if (targetBytes != null && targetBytes > 0) targetBytes else null
             )
@@ -108,296 +131,284 @@ fun BentoDashboard(mode: AppMode = AppMode.COMPRESS_SINGLE) {
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = Color.Black
+        color = Color(0xFF050505)
     ) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(bottom = 32.dp)
+                .systemBarsPadding()
+                .verticalScroll(rememberScrollState())
         ) {
-            // Header
-            item(span = { GridItemSpan(2) }) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "Image Engine",
-                            color = Color.White,
-                            style = MaterialTheme.typography.headlineMedium.copy(
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 1.sp
-                            )
-                        )
-                        Text(
-                            text = when(mode) {
-                                AppMode.COMPRESS_SINGLE -> "Compression: Single"
-                                AppMode.COMPRESS_MULTI -> "Compression: Batch"
-                                AppMode.CONVERT_SINGLE -> "Format Migration: Single"
-                                AppMode.CONVERT_MULTI -> "Format Migration: Batch"
-                                AppMode.BOTH -> "Full Process"
-                            },
-                            color = Color(0xFF00FF41),
-                            style = MaterialTheme.typography.labelSmall,
-                            letterSpacing = 2.sp
-                        )
-                    }
-                    
-                    if (processedResult != null) {
-                        IconButton(
-                            onClick = {
-                                scope.launch {
-                                    val saved = saveToGallery(context, processedResult!!)
-                                    if (saved) {
-                                        Toast.makeText(context, "Saved to Gallery", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            },
-                            colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFF00FF41), contentColor = Color.Black)
-                        ) {
-                            Icon(Icons.Default.Save, null)
+            // New "Studio" Top Bar
+            StudioToolbar(
+                mode = mode,
+                themeColor = themeColor,
+                isProcessing = isProcessing,
+                onSave = {
+                    processedResult?.let { result ->
+                        scope.launch {
+                            if (saveToGallery(context, result)) {
+                                Toast.makeText(context, "Saved to Studio Folder", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     }
                 }
+            )
+
+            // Stage Area: Large Preview with Glass Effects
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+                    .height(420.dp)
+                    .clip(RoundedCornerShape(32.dp))
+                    .background(Color(0xFF111111))
+                    .clickable { 
+                        pickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) 
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                if (selectedImageUri == null) {
+                    EmptyStagePlaceholder(themeColor, isMultiMode)
+                } else {
+                    StagePreview(
+                        isConvertMode = isConvertMode,
+                        selectedUri = selectedImageUri!!,
+                        processedUri = processedResult?.uri,
+                        isProcessing = isProcessing,
+                        themeColor = themeColor
+                    )
+                }
             }
 
-            // Multi-Image Gallery Row (Batch Mode only)
+            // Asset Strip (Batch Mode)
             if (isMultiMode && selectedImagesUris.isNotEmpty()) {
-                item(span = { GridItemSpan(2) }) {
-                    BentoCard(title = "Selected Assets (${selectedImagesUris.size})") {
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            contentPadding = PaddingValues(vertical = 4.dp)
-                        ) {
-                            items(selectedImagesUris) { uri ->
-                                val isSelected = uri == selectedImageUri
-                                Box(
-                                    modifier = Modifier
-                                        .size(60.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .border(
-                                            width = if (isSelected) 2.dp else 0.dp,
-                                            color = if (isSelected) Color(0xFF00FF41) else Color.Transparent,
-                                            shape = RoundedCornerShape(12.dp)
-                                        )
-                                        .clickable { selectedImageUri = uri }
-                                ) {
-                                    AsyncImage(
-                                        model = uri,
-                                        contentDescription = null,
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                    if (isSelected) {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .background(Color(0xFF00FF41).copy(alpha = 0.2f))
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                AssetStrip(
+                    uris = selectedImagesUris,
+                    selectedUri = selectedImageUri,
+                    themeColor = themeColor,
+                    onSelect = { selectedImageUri = it }
+                )
             }
 
-            // Preview Section
-            item(span = { GridItemSpan(2) }) {
-                BentoCard(
-                    modifier = Modifier.height(350.dp),
-                    onClick = {
-                        if (isMultiMode) {
-                            multiPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                        } else {
-                            singlePickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                        }
-                    }
+            // Control Sheet
+            if (selectedImageUri != null) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
-                    if (selectedImageUri == null) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.AddPhotoAlternate, null, tint = Color.Gray, modifier = Modifier.size(64.dp))
-                            Spacer(Modifier.height(12.dp))
-                            Text(
-                                text = if (isMultiMode) "Import Batch" else "Select Image",
-                                color = Color.Gray,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    } else {
-                        Box(contentAlignment = Alignment.Center) {
-                            if (isConvertMode) {
-                                AsyncImage(
-                                    model = processedResult?.uri ?: selectedImageUri,
-                                    contentDescription = "Converted Preview",
-                                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                ImageComparisonSlider(
-                                    originalUri = selectedImageUri,
-                                    processedUri = processedResult?.uri ?: selectedImageUri
-                                )
-                            }
-                            if (isProcessing) {
-                                CircularProgressIndicator(color = Color(0xFF00FF41))
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Mode Selection - Hide until image selected
-            if (!isConvertMode && selectedImageUri != null) {
-                item(span = { GridItemSpan(2) }) {
-                    BentoCard {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text("Custom File Size Mode", color = Color.White)
-                            Switch(
-                                checked = useTargetSize,
-                                onCheckedChange = { useTargetSize = it },
-                                colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00FF41))
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Current Format Display (Convert Mode only)
-            if (isConvertMode && selectedImageUri != null) {
-                item {
-                    BentoCard(title = "Original Format") {
-                        Text(
-                            text = getImageFormatFromUri(context, selectedImageUri!!),
-                            color = Color.White,
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 2.sp
-                            )
+                    // Step 1: Format (Convert/Both)
+                    if (isConvertMode || isBothMode) {
+                        FormatControlCard(
+                            originalFormat = originalFormatName,
+                            targetFormat = targetFormat,
+                            themeColor = themeColor,
+                            onFormatSelect = { targetFormat = it }
                         )
                     }
-                }
-            }
 
-            // Format Selection - Visible in Convert or Both modes ONLY after selection
-            if ((isConvertMode || mode == AppMode.BOTH) && selectedImageUri != null) {
-                item(span = { if (isConvertMode) GridItemSpan(1) else GridItemSpan(1) }) {
-                    BentoCard(title = "Convert to") {
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            ImageFormat.entries.forEach { format ->
-                                FilterChip(
-                                    selected = targetFormat == format,
-                                    onClick = { targetFormat = format },
-                                    label = { Text(format.name, fontSize = 10.sp) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = Color(0xFF00FF41),
-                                        selectedLabelColor = Color.Black,
-                                        containerColor = Color(0xFF1E1E1E),
-                                        labelColor = Color.White
-                                    ),
-                                    border = null
-                                )
-                            }
-                        }
+                    // Step 2: Optimization (Compress/Both)
+                    if (!isConvertMode) {
+                        OptimizationControlCard(
+                            useTargetSize = useTargetSize,
+                            onModeToggle = { useTargetSize = it },
+                            targetSizeValue = targetSizeValue,
+                            onSizeChange = { targetSizeValue = it },
+                            selectedUnit = selectedUnit,
+                            onUnitChange = { selectedUnit = it },
+                            quality = quality,
+                            onQualityChange = { quality = it },
+                            themeColor = themeColor
+                        )
                     }
+
+                    // Intelligence Footer
+                    IntelligenceStrip(
+                        context = context,
+                        selectedUri = selectedImageUri,
+                        processedResult = processedResult,
+                        themeColor = themeColor,
+                        isConvertMode = isConvertMode
+                    )
+                    
+                    Spacer(modifier = Modifier.height(40.dp))
                 }
             }
+        }
+    }
+}
 
-            // Control Selection - Hide until image selected
-            if (!isConvertMode && selectedImageUri != null) {
-                item(span = { if (mode == AppMode.BOTH) GridItemSpan(1) else GridItemSpan(2) }) {
-                    if (useTargetSize) {
-                        BentoCard(title = "Target Size") {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                TextField(
-                                    value = targetSizeValue,
-                                    onValueChange = { targetSizeValue = it },
-                                    modifier = Modifier.weight(1f),
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                    colors = TextFieldDefaults.colors(
-                                        focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.White,
-                                        focusedContainerColor = Color.Transparent,
-                                        unfocusedContainerColor = Color.Transparent,
-                                        focusedIndicatorColor = Color(0xFF00FF41)
-                                    ),
-                                    singleLine = true
-                                )
-                                
-                                var unitExpanded by remember { mutableStateOf(false) }
-                                Box {
-                                    TextButton(onClick = { unitExpanded = true }) {
-                                        Text(selectedUnit.name, color = Color(0xFF00FF41))
-                                        Icon(Icons.Default.ArrowDropDown, null, tint = Color(0xFF00FF41))
-                                    }
-                                    DropdownMenu(
-                                        expanded = unitExpanded,
-                                        onDismissRequest = { unitExpanded = false },
-                                        modifier = Modifier.background(Color(0xFF1E1E1E))
-                                    ) {
-                                        SizeUnit.entries.forEach { unit ->
-                                            DropdownMenuItem(
-                                                text = { Text(unit.name, color = Color.White) },
-                                                onClick = {
-                                                    selectedUnit = unit
-                                                    unitExpanded = false
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        BentoCard(title = "Quality: ${quality.toInt()}%") {
-                            Slider(
-                                value = quality,
-                                onValueChange = { quality = it },
-                                valueRange = 10f..100f,
-                                colors = SliderDefaults.colors(
-                                    thumbColor = Color.White,
-                                    activeTrackColor = Color(0xFF00FF41)
-                                )
-                            )
-                        }
-                    }
-                }
+@Composable
+fun StudioToolbar(
+    mode: AppMode,
+    themeColor: Color,
+    isProcessing: Boolean,
+    onSave: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(24.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Text(
+                text = "Studio View",
+                color = Color.White,
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black)
+            )
+            Text(
+                text = when(mode) {
+                    AppMode.COMPRESS_SINGLE -> "Precision Compression"
+                    AppMode.COMPRESS_MULTI -> "Batch Compression"
+                    AppMode.CONVERT_SINGLE -> "Format migration"
+                    AppMode.CONVERT_MULTI -> "Batch Migration"
+                    AppMode.BOTH_SINGLE -> "Full Optimization"
+                    AppMode.BOTH_MULTI -> "Full Batch Optimization"
+                },
+                color = themeColor,
+                style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 1.sp)
+            )
+        }
+        
+        IconButton(
+            onClick = onSave,
+            enabled = !isProcessing,
+            colors = IconButtonDefaults.iconButtonColors(
+                containerColor = themeColor,
+                contentColor = Color.Black
+            ),
+            modifier = Modifier.size(52.dp)
+        ) {
+            Icon(Icons.Default.Download, null)
+        }
+    }
+}
+
+@Composable
+fun StagePreview(
+    isConvertMode: Boolean,
+    selectedUri: Uri,
+    processedUri: Uri?,
+    isProcessing: Boolean,
+    themeColor: Color
+) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (isConvertMode) {
+            AsyncImage(
+                model = processedUri ?: selectedUri,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            ImageComparisonSlider(
+                originalUri = selectedUri,
+                processedUri = processedUri ?: selectedUri
+            )
+        }
+        
+        if (isProcessing) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f)),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = themeColor, strokeWidth = 3.dp)
             }
+        }
+    }
+}
 
-            // Statistics Card - Hide until image selected
-            if (selectedImageUri != null) {
-                item(span = { GridItemSpan(2) }) {
-                    BentoCard(title = if (isConvertMode) "Format Intelligence" else "Compression Intelligence") {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            StatItem("Original", getFileSize(context, selectedImageUri))
-                            Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = Color.Gray, modifier = Modifier.size(20.dp))
-                            StatItem(if (isConvertMode) "Converted" else "Optimized", formatSize(processedResult?.sizeBytes ?: 0))
-                            
-                            if (!isConvertMode) {
-                                val saving = calculateSaving(context, selectedImageUri, processedResult?.sizeBytes)
-                                StatItem("Saving", "$saving%", color = Color(0xFF00FF41))
-                            }
-                        }
+@Composable
+fun EmptyStagePlaceholder(themeColor: Color, isMultiMode: Boolean) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .size(80.dp)
+                .background(themeColor.copy(alpha = 0.1f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                if (isMultiMode) Icons.Default.LibraryAdd else Icons.Default.AddAPhoto,
+                null,
+                tint = themeColor,
+                modifier = Modifier.size(32.dp)
+            )
+        }
+        Spacer(Modifier.height(20.dp))
+        Text("Import Media", color = Color.White, fontWeight = FontWeight.Bold)
+        Text("Select files to begin optimization", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable
+fun AssetStrip(
+    uris: List<Uri>,
+    selectedUri: Uri?,
+    themeColor: Color,
+    onSelect: (Uri) -> Unit
+) {
+    LazyRow(
+        modifier = Modifier.padding(bottom = 20.dp),
+        contentPadding = PaddingValues(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(uris) { uri ->
+            val active = uri == selectedUri
+            Box(
+                modifier = Modifier
+                    .size(70.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(
+                        2.dp, 
+                        if (active) themeColor else Color.Transparent, 
+                        RoundedCornerShape(16.dp)
+                    )
+                    .clickable { onSelect(uri) }
+            ) {
+                AsyncImage(model = uri, null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                if (active) Box(Modifier.fillMaxSize().background(themeColor.copy(alpha = 0.2f)))
+            }
+        }
+    }
+}
+
+@Composable
+fun FormatControlCard(
+    originalFormat: String,
+    targetFormat: ImageFormat,
+    themeColor: Color,
+    onFormatSelect: (ImageFormat) -> Unit
+) {
+    StudioCard(title = "Stage 1: Format Migration") {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Original", color = Color.Gray, style = MaterialTheme.typography.labelSmall)
+                Text(originalFormat, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            }
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = Color.DarkGray, modifier = Modifier.padding(horizontal = 16.dp))
+            Column(modifier = Modifier.weight(2f)) {
+                Text("Target", color = Color.Gray, style = MaterialTheme.typography.labelSmall)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ImageFormat.entries.forEach { format ->
+                        FilterChip(
+                            selected = targetFormat == format,
+                            onClick = { onFormatSelect(format) },
+                            label = { Text(format.name, fontSize = 10.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = themeColor,
+                                selectedLabelColor = Color.Black,
+                                containerColor = Color(0xFF1A1A1A),
+                                labelColor = Color.White
+                            ),
+                            border = null,
+                            shape = RoundedCornerShape(8.dp)
+                        )
                     }
                 }
             }
@@ -406,31 +417,117 @@ fun BentoDashboard(mode: AppMode = AppMode.COMPRESS_SINGLE) {
 }
 
 @Composable
-fun BentoCard(
-    modifier: Modifier = Modifier,
-    title: String? = null,
-    onClick: (() -> Unit)? = null,
-    content: @Composable () -> Unit
+fun OptimizationControlCard(
+    useTargetSize: Boolean,
+    onModeToggle: (Boolean) -> Unit,
+    targetSizeValue: String,
+    onSizeChange: (String) -> Unit,
+    selectedUnit: SizeUnit,
+    onUnitChange: (SizeUnit) -> Unit,
+    quality: Float,
+    onQualityChange: (Float) -> Unit,
+    themeColor: Color
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F0F0F)),
-        onClick = onClick ?: {},
-        enabled = onClick != null
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(20.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+    StudioCard(title = "Stage 2: Size Engine") {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Manual Quality", color = if (!useTargetSize) Color.White else Color.Gray)
+                Switch(
+                    checked = useTargetSize,
+                    onCheckedChange = onModeToggle,
+                    colors = SwitchDefaults.colors(checkedThumbColor = themeColor)
+                )
+                Text("Precise Target", color = if (useTargetSize) Color.White else Color.Gray)
+            }
+
+            if (useTargetSize) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextField(
+                        value = targetSizeValue,
+                        onValueChange = onSizeChange,
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            focusedIndicatorColor = themeColor
+                        ),
+                        singleLine = true
+                    )
+                    var expanded by remember { mutableStateOf(false) }
+                    Box {
+                        TextButton(onClick = { expanded = true }) {
+                            Text(selectedUnit.name, color = themeColor)
+                        }
+                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                            SizeUnit.entries.forEach { 
+                                DropdownMenuItem(
+                                    text = { Text(it.name) }, 
+                                    onClick = { onUnitChange(it); expanded = false }
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                Column {
+                    Slider(
+                        value = quality,
+                        onValueChange = onQualityChange,
+                        valueRange = 10f..100f,
+                        colors = SliderDefaults.colors(activeTrackColor = themeColor, thumbColor = Color.White)
+                    )
+                    Text("${quality.toInt()}% Quality", color = themeColor, modifier = Modifier.align(Alignment.End), style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun IntelligenceStrip(
+    context: Context,
+    selectedUri: Uri?,
+    processedResult: CompressionResult?,
+    themeColor: Color,
+    isConvertMode: Boolean
+) {
+    StudioCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            IntelligenceItem("Source", getFileSize(context, selectedUri))
+            Icon(Icons.Default.Memory, null, tint = Color.DarkGray, modifier = Modifier.size(16.dp))
+            IntelligenceItem("Result", formatSize(processedResult?.sizeBytes ?: 0), color = themeColor)
+            
+            if (!isConvertMode) {
+                val saving = calculateSaving(context, selectedUri, processedResult?.sizeBytes)
+                IntelligenceItem("Efficiency", "$saving%", color = themeColor)
+            }
+        }
+    }
+}
+
+@Composable
+fun StudioCard(title: String? = null, content: @Composable () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF111111))
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
             if (title != null) {
                 Text(
-                    title,
-                    color = Color.Gray,
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.align(Alignment.Start).padding(bottom = 12.dp),
-                    letterSpacing = 1.sp
+                    title.uppercase(),
+                    color = Color.White.copy(alpha = 0.3f),
+                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold),
+                    modifier = Modifier.padding(bottom = 16.dp)
                 )
             }
             content()
@@ -439,11 +536,10 @@ fun BentoCard(
 }
 
 @Composable
-fun StatItem(label: String, value: String, color: Color = Color.White) {
+fun IntelligenceItem(label: String, value: String, color: Color = Color.White) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(label, color = Color.Gray, style = MaterialTheme.typography.labelSmall)
-        Spacer(Modifier.height(4.dp))
-        Text(value, color = color, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+        Text(value, color = color, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black))
     }
 }
 
@@ -454,9 +550,7 @@ fun getFileSize(context: Context, uri: Uri?): String {
         val size = inputStream?.available()?.toLong() ?: 0L
         inputStream?.close()
         formatSize(size)
-    } catch (ignored: Exception) {
-        "0 KB"
-    }
+    } catch (ignored: Exception) { "0 KB" }
 }
 
 fun formatSize(size: Long): String {
@@ -482,7 +576,6 @@ suspend fun saveToGallery(context: Context, result: CompressionResult): Boolean 
         put(MediaStore.MediaColumns.MIME_TYPE, result.format.mimeType)
         put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/ConCom")
     }
-    
     val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
     uri?.let { targetUri ->
         context.contentResolver.openOutputStream(targetUri)?.use { outputStream ->

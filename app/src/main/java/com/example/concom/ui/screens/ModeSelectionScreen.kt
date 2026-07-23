@@ -24,11 +24,11 @@ import androidx.compose.ui.unit.sp
 import com.example.concom.ui.theme.DeepBlack
 
 enum class AppMode {
-    COMPRESS_SINGLE, COMPRESS_MULTI, CONVERT_SINGLE, CONVERT_MULTI, BOTH
+    COMPRESS_SINGLE, COMPRESS_MULTI, CONVERT_SINGLE, CONVERT_MULTI, BOTH_SINGLE, BOTH_MULTI
 }
 
 enum class SelectionState {
-    MAIN, COMPRESS_SUB, CONVERT_SUB
+    MAIN, COMPRESS_SUB, CONVERT_SUB, BOTH_SUB
 }
 
 @Composable
@@ -51,6 +51,7 @@ fun ModeSelectionScreen(onModeSelected: (AppMode) -> Unit) {
                     SelectionState.MAIN -> "SELECT ENGINE"
                     SelectionState.COMPRESS_SUB -> "COMPRESSION TYPE"
                     SelectionState.CONVERT_SUB -> "CONVERSION TYPE"
+                    SelectionState.BOTH_SUB -> "OPTIMIZATION TYPE"
                 },
                 color = Color.White,
                 style = MaterialTheme.typography.labelLarge.copy(
@@ -81,6 +82,14 @@ fun ModeSelectionScreen(onModeSelected: (AppMode) -> Unit) {
                             color = Color(0xFFD0BCFF),
                             onSingleClick = { onModeSelected(AppMode.CONVERT_SINGLE) },
                             onMultiClick = { onModeSelected(AppMode.CONVERT_MULTI) },
+                            onBack = { selectionState = SelectionState.MAIN }
+                        )
+                    }
+                    SelectionState.BOTH_SUB -> {
+                        SubMenu(
+                            color = Color(0xFF00E5FF),
+                            onSingleClick = { onModeSelected(AppMode.BOTH_SINGLE) },
+                            onMultiClick = { onModeSelected(AppMode.BOTH_MULTI) },
                             onBack = { selectionState = SelectionState.MAIN }
                         )
                     }
@@ -118,7 +127,7 @@ fun ModeSelectionScreen(onModeSelected: (AppMode) -> Unit) {
                                 icon = Icons.Default.AutoMode,
                                 color = Color(0xFF00E5FF),
                                 modifier = Modifier.fillMaxWidth().height(140.dp),
-                                onClick = { onModeSelected(AppMode.BOTH) }
+                                onClick = { selectionState = SelectionState.BOTH_SUB }
                             )
                         }
                     }
