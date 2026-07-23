@@ -116,7 +116,7 @@ class MainActivity : ComponentActivity() {
                             selectedMode = mode
                             currentScreen = "dashboard"
                         })
-                        "dashboard" -> BentoDashboard(mode = selectedMode ?: AppMode.COMPRESS)
+                        "dashboard" -> BentoDashboard(mode = selectedMode ?: AppMode.COMPRESS_SINGLE)
                     }
                 }
             }

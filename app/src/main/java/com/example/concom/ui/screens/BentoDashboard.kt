@@ -8,7 +8,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -37,24 +37,33 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
+enum class SizeUnit(val factor: Long) {
+    BYTE(1L), KB(1024L), MB(1024L * 1024L)
+}
+
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun BentoDashboard(mode: AppMode = AppMode.COMPRESS) {
+fun BentoDashboard(mode: AppMode = AppMode.COMPRESS_SINGLE) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val processor = remember { ImageProcessor(context) }
     
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedImagesUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    
     var processedResult by remember { mutableStateOf<CompressionResult?>(null) }
     var targetFormat by remember { mutableStateOf(ImageFormat.WEBP) }
     var quality by remember { mutableFloatStateOf(80f) }
     
     var useTargetSize by remember { mutableStateOf(false) }
-    var targetSizeKb by remember { mutableStateOf("500") }
+    var targetSizeValue by remember { mutableStateOf("500") }
+    var selectedUnit by remember { mutableStateOf(SizeUnit.KB) }
     
     var isProcessing by remember { mutableStateOf(value = false) }
 
-    val pickerLauncher = rememberLauncherForActivityResult(
+    val isMultiMode = mode == AppMode.COMPRESS_MULTI
+
+    val singlePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
     ) { uri ->
         if (uri != null) {
@@ -63,13 +72,23 @@ fun BentoDashboard(mode: AppMode = AppMode.COMPRESS) {
         }
     }
 
-    LaunchedEffect(selectedImageUri, targetFormat, quality, useTargetSize, targetSizeKb) {
+    val multiPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia(),
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            selectedImagesUris = uris
+            selectedImageUri = uris.first()
+            processedResult = null
+        }
+    }
+
+    LaunchedEffect(selectedImageUri, targetFormat, quality, useTargetSize, targetSizeValue, selectedUnit) {
         selectedImageUri?.let { uri ->
             isProcessing = true
-            val targetBytes = if (useTargetSize) (targetSizeKb.toLongOrNull() ?: 0L) * 1024L else null
+            val targetBytes = if (useTargetSize) (targetSizeValue.toLongOrNull() ?: 0L) * selectedUnit.factor else null
             processedResult = processor.processImage(
                 inputUri = uri,
-                targetFormat = targetFormat,
+                targetFormat = if (mode == AppMode.CONVERT || mode == AppMode.BOTH) targetFormat else ImageFormat.JPEG,
                 quality = quality.toInt(),
                 targetSizeBytes = if (targetBytes != null && targetBytes > 0) targetBytes else null
             )
@@ -108,7 +127,8 @@ fun BentoDashboard(mode: AppMode = AppMode.COMPRESS) {
                         )
                         Text(
                             text = when(mode) {
-                                AppMode.COMPRESS -> "Optimization Mode"
+                                AppMode.COMPRESS_SINGLE -> "Compression: Single"
+                                AppMode.COMPRESS_MULTI -> "Compression: Batch"
                                 AppMode.CONVERT -> "Format Migration"
                                 AppMode.BOTH -> "Full Process"
                             },
@@ -140,7 +160,13 @@ fun BentoDashboard(mode: AppMode = AppMode.COMPRESS) {
             item(span = { GridItemSpan(2) }) {
                 BentoCard(
                     modifier = Modifier.height(350.dp),
-                    onClick = { pickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+                    onClick = {
+                        if (isMultiMode) {
+                            multiPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        } else {
+                            singlePickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        }
+                    }
                 ) {
                     if (selectedImageUri == null) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -180,49 +206,79 @@ fun BentoDashboard(mode: AppMode = AppMode.COMPRESS) {
                 }
             }
 
-            // Format Selection
-            item {
-                BentoCard(title = "Format") {
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        ImageFormat.entries.forEach { format ->
-                            FilterChip(
-                                selected = targetFormat == format,
-                                onClick = { targetFormat = format },
-                                label = { Text(format.name, fontSize = 10.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = Color(0xFF00FF41),
-                                    selectedLabelColor = Color.Black,
-                                    containerColor = Color(0xFF1E1E1E),
-                                    labelColor = Color.White
-                                ),
-                                border = null
-                            )
+            // Format Selection - Only visible in Convert or Both modes
+            if (mode == AppMode.CONVERT || mode == AppMode.BOTH) {
+                item {
+                    BentoCard(title = "Format") {
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            ImageFormat.entries.forEach { format ->
+                                FilterChip(
+                                    selected = targetFormat == format,
+                                    onClick = { targetFormat = format },
+                                    label = { Text(format.name, fontSize = 10.sp) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = Color(0xFF00FF41),
+                                        selectedLabelColor = Color.Black,
+                                        containerColor = Color(0xFF1E1E1E),
+                                        labelColor = Color.White
+                                    ),
+                                    border = null
+                                )
+                            }
                         }
                     }
                 }
             }
 
             // Control Selection
-            item {
+            item(span = { if (mode == AppMode.CONVERT || mode == AppMode.BOTH) GridItemSpan(1) else GridItemSpan(2) }) {
                 if (useTargetSize) {
-                    BentoCard(title = "Target Size (KB)") {
-                        TextField(
-                            value = targetSizeKb,
-                            onValueChange = { targetSizeKb = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            colors = TextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                focusedIndicatorColor = Color(0xFF00FF41)
-                            ),
-                            singleLine = true
-                        )
+                    BentoCard(title = "Target Size") {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            TextField(
+                                value = targetSizeValue,
+                                onValueChange = { targetSizeValue = it },
+                                modifier = Modifier.weight(1f),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                colors = TextFieldDefaults.colors(
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White,
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color(0xFF00FF41)
+                                ),
+                                singleLine = true
+                            )
+                            
+                            var unitExpanded by remember { mutableStateOf(false) }
+                            Box {
+                                TextButton(onClick = { unitExpanded = true }) {
+                                    Text(selectedUnit.name, color = Color(0xFF00FF41))
+                                    Icon(Icons.Default.ArrowDropDown, null, tint = Color(0xFF00FF41))
+                                }
+                                DropdownMenu(
+                                    expanded = unitExpanded,
+                                    onDismissRequest = { unitExpanded = false },
+                                    modifier = Modifier.background(Color(0xFF1E1E1E))
+                                ) {
+                                    SizeUnit.entries.forEach { unit ->
+                                        DropdownMenuItem(
+                                            text = { Text(unit.name, color = Color.White) },
+                                            onClick = {
+                                                selectedUnit = unit
+                                                unitExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 } else {
                     BentoCard(title = "Quality: ${quality.toInt()}%") {

@@ -1,5 +1,9 @@
 package com.example.concom.ui.screens
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -7,7 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -20,11 +24,13 @@ import androidx.compose.ui.unit.sp
 import com.example.concom.ui.theme.DeepBlack
 
 enum class AppMode {
-    COMPRESS, CONVERT, BOTH
+    COMPRESS_SINGLE, COMPRESS_MULTI, CONVERT, BOTH
 }
 
 @Composable
 fun ModeSelectionScreen(onModeSelected: (AppMode) -> Unit) {
+    var showCompressSubMenu by remember { mutableStateOf(false) }
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = DeepBlack
@@ -37,7 +43,7 @@ fun ModeSelectionScreen(onModeSelected: (AppMode) -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "SELECT ENGINE",
+                text = if (showCompressSubMenu) "COMPRESSION TYPE" else "SELECT ENGINE",
                 color = Color.White,
                 style = MaterialTheme.typography.labelLarge.copy(
                     letterSpacing = 8.sp,
@@ -46,41 +52,85 @@ fun ModeSelectionScreen(onModeSelected: (AppMode) -> Unit) {
                 modifier = Modifier.padding(bottom = 32.dp)
             )
 
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    ModeCard(
-                        title = "COMPRESS",
-                        subtitle = "Reduce Size",
-                        icon = Icons.Default.Compress,
-                        color = Color(0xFF00FF41),
-                        modifier = Modifier.weight(1f),
-                        onClick = { onModeSelected(AppMode.COMPRESS) }
-                    )
-                    
-                    ModeCard(
-                        title = "CONVERT",
-                        subtitle = "Change Format",
-                        icon = Icons.Default.Transform,
-                        color = Color(0xFFD0BCFF),
-                        modifier = Modifier.weight(1f),
-                        onClick = { onModeSelected(AppMode.CONVERT) }
-                    )
-                }
+            AnimatedContent(
+                targetState = showCompressSubMenu,
+                transitionSpec = {
+                    fadeIn() togetherWith fadeOut()
+                },
+                label = "SelectionTransition"
+            ) { isSubMenu ->
+                if (isSubMenu) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            ModeCard(
+                                title = "SINGLE",
+                                subtitle = "One Image",
+                                icon = Icons.Default.Photo,
+                                color = Color(0xFF00FF41),
+                                modifier = Modifier.weight(1f),
+                                onClick = { onModeSelected(AppMode.COMPRESS_SINGLE) }
+                            )
+                            ModeCard(
+                                title = "MULTIPLE",
+                                subtitle = "Batch Process",
+                                icon = Icons.Default.PhotoLibrary,
+                                color = Color(0xFF00FF41),
+                                modifier = Modifier.weight(1f),
+                                onClick = { onModeSelected(AppMode.COMPRESS_MULTI) }
+                            )
+                        }
+                        
+                        TextButton(
+                            onClick = { showCompressSubMenu = false },
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        ) {
+                            Text("Back to Engines", color = Color.Gray)
+                        }
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            ModeCard(
+                                title = "COMPRESS",
+                                subtitle = "Reduce Size",
+                                icon = Icons.Default.Compress,
+                                color = Color(0xFF00FF41),
+                                modifier = Modifier.weight(1f),
+                                onClick = { showCompressSubMenu = true }
+                            )
+                            
+                            ModeCard(
+                                title = "CONVERT",
+                                subtitle = "Change Format",
+                                icon = Icons.Default.Transform,
+                                color = Color(0xFFD0BCFF),
+                                modifier = Modifier.weight(1f),
+                                onClick = { onModeSelected(AppMode.CONVERT) }
+                            )
+                        }
 
-                ModeCard(
-                    title = "COMPRESS & CONVERT",
-                    subtitle = "Full Optimization Engine",
-                    icon = Icons.Default.AutoMode,
-                    color = Color(0xFF00E5FF),
-                    modifier = Modifier.fillMaxWidth().height(140.dp),
-                    onClick = { onModeSelected(AppMode.BOTH) }
-                )
+                        ModeCard(
+                            title = "COMPRESS & CONVERT",
+                            subtitle = "Full Optimization Engine",
+                            icon = Icons.Default.AutoMode,
+                            color = Color(0xFF00E5FF),
+                            modifier = Modifier.fillMaxWidth().height(140.dp),
+                            onClick = { onModeSelected(AppMode.BOTH) }
+                        )
+                    }
+                }
             }
         }
     }
@@ -101,7 +151,7 @@ fun ModeCard(
             .clip(RoundedCornerShape(32.dp))
             .background(Color(0xFF0F0F0F))
             .clickable(onClick = onClick)
-            .padding(2.dp) // Border effect
+            .padding(2.dp)
             .background(
                 Brush.verticalGradient(
                     listOf(color.copy(alpha = 0.1f), Color.Transparent)
